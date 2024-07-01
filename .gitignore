@@ -1,0 +1,56 @@
+# Composer dependency directory
+/vendor/
+
+# Node dependency directory
+/node_modules/
+
+# Composer PHAR file
+/composer.phar
+
+# Environment configuration
+/.env
+/.env.local
+/.env.*.local
+
+# Runtime directory and log files
+/runtime/
+logs/
+
+# Yii2 generated files
+/web/assets/
+web/assets/
+/web/bower/
+web/bower/
+web/css/
+web/js/
+/web/logos-empresas/
+/web/images/
+
+# Debug and gii data
+/gii/
+debug/
+/tests/_output/
+/tests/_support/_generated/
+/tests/_support/Helper/_generated/
+
+# IDE specific files
+/.idea/
+/*.iml
+/.vscode/
+
+# Mac specific files
+.DS_Store
+
+# Thumbnails
+/thumbs/
+
+# User-uploaded files
+/uploads/
+
+/TCPDF/
+
+/phpqrcode/
+
+/documentacion/
+
+/fpdf/
