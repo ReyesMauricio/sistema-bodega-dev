@@ -144,6 +144,28 @@ class RegistroModelSearch extends RegistroModel
         return $dataProvider;
     }
 
+    public function searchFardoAsignacion($params, $mesa)
+    {
+        $query = RegistroModel::find()
+            ->where(['Estado' => 'PROCESO'])
+            ->andWhere(['MesaOrigenAsignacion' => $mesa])
+            ->andWhere(['not in', 'IdTipoEmpaque', [1023]]);
+
+        $dataProvider = new ActiveDataProvider([
+            'query' => $query,
+        ]);
+
+        // Cargar los datos con los parámetros de búsqueda proporcionados
+        $this->load($params);
+
+        if (!$this->validate()) {
+            // Si los datos no son válidos, retorna el dataProvider vacío
+            return $dataProvider;
+        }
+
+        return $dataProvider;
+    }
+
     public function searchBarrilesProduccion($params, $mesa)
     {
         $query = RegistroModel::find()

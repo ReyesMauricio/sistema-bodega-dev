@@ -52,6 +52,10 @@ $this->params['breadcrumbs'][] = $this->title;
                                     <?= Html::a('<i class="fas fa-plus"></i>', 
                                     Url::to(['/barriles/detalle-mesa-asignacion', 'mesa' => $registro->NumeroMesa]), 
                                     ['class' => 'btn btn-sm btn-primary', 'title' => 'Crear Barril Produccion']); ?>
+                                    
+                                    <?= Html::a('<i class="fas fa-eye"></i>', 
+                                    Url::to(['/barriles/fardo-asignacion-proceso', 'mesa' => $registro->NumeroMesa]), 
+                                    ['class' => 'btn btn-sm btn-primary', 'title' => 'Ver FARDOS Asignados']); ?>
                                 </td>
 
                             </tr>

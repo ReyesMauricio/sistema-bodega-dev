@@ -13,7 +13,13 @@ use yii\grid\GridView;
 $this->title = 'Asignar barril';
 $this->params['breadcrumbs'][] = ['label' => 'Listado', 'url' => ['index-verificar-transaccion']];
 $this->params['breadcrumbs'][] = $this->title;
-
+$totalCosto = 0;
+$totalLibras = 0;
+    foreach($dataProvider->models as $data)
+    {
+        $totalLibras += $data->Libras;
+        $totalCosto += $data->Costo;
+    }
 ?>
 
 <div class="card card-dark bg-light rounded shadow-sm">
@@ -85,6 +91,8 @@ $this->params['breadcrumbs'][] = $this->title;
                                 'header' => 'No.',
                                 'contentOptions' => ['class' => 'text-center', 'style' => 'width: 50px;'],
                                 'headerOptions' => ['class' => 'text-center'], // Centra el encabezado
+                                'footer' => '<strong>TOTALES</strong>',
+                                'footerOptions' => ['class' => 'text-center']
                             ],
                             [
                                 'attribute' => 'CodigoBarra',
@@ -116,6 +124,8 @@ $this->params['breadcrumbs'][] = $this->title;
                                 },
                                 'contentOptions' => ['class' => 'text-center', 'style' => 'width: 100px;'],
                                 'headerOptions' => ['class' => 'text-center'], // Centra el encabezado
+                                'footer' => '<strong>'.$totalLibras. ' Lbs'.'</strong>',
+                                'footerOptions' => ['class' => 'text-center'], // Centra el encabezado
                             ],
                             [
                                 'class' => 'yii\grid\ActionColumn',
@@ -132,16 +142,16 @@ $this->params['breadcrumbs'][] = $this->title;
                                         ]);
                                     },
                                 ],
-                                'urlCreator' => function ($action, $model) {
+                                'urlCreator' => function ($action, $model) use($mesa) {
                                     if ($action === 'delete') {
-                                        return Url::to(['eliminar-barril-fardo', 'codigoBarra' => $model->CodigoBarra, 'libras' => $model->Libras]);
+                                        return Url::to(['eliminar-barril-produccion', 'codigoBarra' => $model->CodigoBarra, 'mesa' => $mesa]);
                                     }
                                 },
                                 'contentOptions' => ['class' => 'text-center', 'style' => 'width: 100px;'],
                                 'headerOptions' => ['class' => 'text-center'], // Centra el encabezado
                             ],
                         ],
-                        'showFooter' => false,
+                        'showFooter' => true,
                         'headerRowOptions' => ['class' => 'kartik-sheet-style', 'style' => 'padding: 4px;'],
                         'filterRowOptions' => ['class' => 'kartik-sheet-style', 'style' => 'padding: 4px;'],
                         'tableOptions' => ['class' => 'table table-striped table-bordered table-hover'], // Bootstrap table style
@@ -176,8 +186,8 @@ $this->params['breadcrumbs'][] = $this->title;
 </style>
 <?php
     // Ruta a la acción de Yii2 que manejará la solicitud AJAX
-    $url = Yii::$app->urlManager->createUrl(['barriles/finalizar-transaccion-barriles']);
-    $urlIndex = Yii::$app->urlManager->createUrl(['barriles/index-verificar-transaccion']);
+    $url = Yii::$app->urlManager->createUrl(['barriles/finalizar-barril-produccion']);
+    $urlIndex = Yii::$app->urlManager->createUrl(['barriles/index-existencia-mesas']);
     $urlEliminarBarrilFardo = Yii::$app->urlManager->createUrl(['barriles/eliminar-barril-fardo']);
 ?>
 
@@ -191,6 +201,7 @@ $this->params['breadcrumbs'][] = $this->title;
 
         $("#finalizar-transaccion").click(function(e){
             e.preventDefault(); // Prevenir el comportamiento predeterminado del botón
+            
             //Mostramos el SWAL
             Swal.fire({
                 title: '¿Estás seguro de terminar este costeo?',
@@ -211,6 +222,17 @@ $this->params['breadcrumbs'][] = $this->title;
                             Swal.showLoading();
                         }
                     });
+                      // Array para almacenar los códigos de barras
+                    var codigosBarras = [];
+
+                    // Recorrer cada fila visible del GridView
+                    $('#kv-cajas tbody tr').each(function(index, element) {
+                        // Obtener el código de barras de la fila
+                        var codigoBarra = $(element).find('td:eq(1)').text(); // Ajustar el índice según tu configuración de columnas
+
+                        // Agregar el código de barras al array
+                        codigosBarras.push(codigoBarra);
+                    });
                     // Realizar la solicitud AJAX
                     $.ajax({
                         url: '<?= $url ?>',
@@ -218,7 +240,9 @@ $this->params['breadcrumbs'][] = $this->title;
                         data: {
                             totalLibras: $('#totalLibras').val(),
                             totalCosto: $('#totalCosto').val(),
-                            uuid: $('#uuid').val(),
+                            //Aqui enviar todos los codigos de barra
+                            codigos: codigosBarras,
+                            mesa: $('#mesa').val(),
                         },
                         success: function(response){
                             console.log(response);
@@ -247,12 +271,83 @@ $this->params['breadcrumbs'][] = $this->title;
                         error: function(xhr, status, error){
                             // Aquí puedes manejar los errores si es necesario
                             console.error(error);
-                            Swal.fire('¡Error!', 'Ha ocurrido un error al intentar terminar el costeo', 'error');
+                            Swal.fire({
+                                    title: 'Error',
+                                    text: error,
+                                    icon: 'error',
+                                    confirmButtonText: 'OK'
+                                });
                         }
                     });
                 }
             });
         });
+        $(document).on('click', '#eliminar-barril', function(e) {
+        e.preventDefault(); // Prevenir el comportamiento predeterminado del enlace
+
+        var url = $(this).attr('href'); // Obtener la URL de la solicitud AJAX
+
+        var rowCount = $('#kv-cajas tbody tr').length;
+        console.log(rowCount)
+            // Mostrar SweetAlert para confirmar la eliminación
+        Swal.fire({
+            title: '¿Estás seguro?',
+            text: '¿Seguro que quieres eliminar este elemento?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'Espere por favor',
+                    text: 'Procesando transacción...',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                // Realizar la solicitud AJAX para eliminar el elemento
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    success: function(response) {
+                        if (response.success) {
+                            // Mostrar un SweetAlert de éxito
+                            Swal.fire({
+                                title: 'Éxito',
+                                text: response.message,
+                                icon: 'success',
+                                confirmButtonText: 'OK'
+                            });
+
+                            // Recargar el GridView después de eliminar el elemento
+                            $.pjax.reload({container: '#cajas-grid'}); // Ajustar el selector según tu Pjax
+                        } else {
+                            // Mostrar un mensaje de error si la eliminación falló
+                            Swal.fire({
+                                title: 'Error',
+                                text: response.message,
+                                icon: 'error',
+                                confirmButtonText: 'OK'
+                            });
+                        }
+                    },
+                    error: function() {
+                        // Mostrar un mensaje de error si hubo un problema con la solicitud AJAX
+                        Swal.fire({
+                            title: 'Error',
+                            text: 'Hubo un problema al procesar la solicitud.',
+                            icon: 'error',
+                            confirmButtonText: 'OK'
+                        });
+                    }
+                });
+            }
+        });
+    });
 
 
     });

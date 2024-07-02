@@ -315,6 +315,15 @@ class BarrilesController extends Controller
         }
     }
 
+    public function actionFardoAsignacionProceso($mesa){
+        $searchModel = new RegistroModelSearch();
+        $dataProvider = $searchModel->searchFardoAsignacion(Yii::$app->request->queryParams, $mesa);
+        return $this->render('fardo-asignacion-proceso',[
+            'searchModel' => $searchModel,
+            'dataProvider' => $dataProvider,
+            'mesa' => $mesa
+        ]);
+    }
 
     /**
      * Verifica un conjunto de codigos de barra para luego ser distribuidos en barriles
@@ -646,7 +655,7 @@ class BarrilesController extends Controller
         return $this->asJson(['success' => true, 'message' => $message]);
         
     }
-    //Falta pensar mejor esta parte !!IMPORTANTE!!
+    
     //ACCION PARA ELIMINAR LOS BARRILES ASIGNADOS A UNA PACA O A UNA SERIE DE FARDOS
     public function actionEliminarBarrilFardo($codigoBarra, $libras)
     {
@@ -672,6 +681,80 @@ class BarrilesController extends Controller
             return $this->asJson(['success' => false, 'message' => $e]);
         }
     }
+
+    public function actionEliminarBarrilProduccion($codigoBarra, $mesa)
+    {
+        $transaction = Yii::$app->db2->beginTransaction();
+        try
+        {
+            $this->eliminarBarrilProduccionTransaccion($codigoBarra);
+            $this->eliminarBarrilProduccion($codigoBarra, $mesa);
+            // Mensaje de exito
+            $message = "El barril con código de barra $codigoBarra ha sido eliminado exitosamente.";
+
+            $transaction->commit();
+            // Devuelve el mensaje como JSON
+            return $this->asJson([
+                'success' => true, 
+                'message' => $message
+            ]);
+        }catch(Exception $e){
+            $transaction->rollBack();
+            return $this->asJson(['success' => false, 'message' =>  $e->getMessage()]);
+        }
+    }
+
+    public function actionFinalizarBarrilProduccion()
+    {
+        $transaction = Yii::$app->db2->beginTransaction();
+        try
+        {
+            $codigos = Yii::$app->request->post('codigos');
+            $mesa = Yii::$app->request->post('mesa');
+            $codigosFardo = $this->obtenerCodigosFardoAsignacion($mesa); // Supongamos que devuelve un array de códigos
+            $codigosFardoAsignacion = [];
+
+            // foreach ($codigosFardo as $codigo) {
+            //     $codigoDataREGISTRO = RegistroModel::find()->andWhere(['CodigoBarra' => $codigo])->one();
+            //     $codigoDataTRANSACCION = TransaccionModel::find()->andWhere(['CodigoBarra' => $codigo])->one();
+            //     $validaciones = $this->validarCodigoBarraProduccion($codigoDataREGISTRO, $codigoDataTRANSACCION);
+            //     if ($validaciones) {
+            //         // Realizar alguna acción si las validaciones pasan
+            //     }
+            // }
+
+            foreach ($codigosFardo as $codigo) {
+                $codigoDataREGISTRO = RegistroModel::find()->andWhere(['CodigoBarra' => $codigo['CodigoBarra']])->one();
+                $codigoDataTRANSACCION = TransaccionModel::find()->andWhere(['CodigoBarra' => $codigo['CodigoBarra']])->one();
+                $validaciones = $this->validarCodigoBarraProduccion($codigoDataREGISTRO, $codigoDataTRANSACCION);
+                // Aquí puedes hacer lo que necesites con cada código de barra
+                if ($validaciones) {
+                    var_dump($codigo['CodigoBarra']);
+                    
+                }
+                else{
+                    $message = "No pasó las validaciones";
+                    return $this->asJson([
+                        'success' => false, 
+                        'message' => $message
+                    ]);
+                }
+                
+            }
+            $message = "El barril con código de barra ha sido eliminado exitosamente.";
+            $transaction->commit();
+            // Devuelve el mensaje como JSON
+            return $this->asJson([
+                'success' => true, 
+                'message' => $message
+            ]);
+        }catch(Exception $e){
+            $transaction->rollBack();
+            return $this->asJson(['success' => false, 'message' =>  $e->getMessage()]);
+        }
+    }
+
+
     //Action para eliminar el ultimo barril junto con la caja
     //Se agrega otro metodo igual porque este metodo recibe una peticion AJAX
     public function actionEliminarCaja()
@@ -1158,12 +1241,17 @@ class BarrilesController extends Controller
                 $articulos = $this->consultarArticulos();
                 // Restablecemos el modelo de barrilDetalle
                 $barrilDetalle = $this->createModelBarrilDetalle();
+
+                $searchModel = new RegistroModelSearch();
+                $dataProvider = $searchModel->searchBarrilesProduccion(Yii::$app->request->queryParams, $mesa);
                 return $this->render(
                     'detalle-mesa-asignacion',
                     [
                         'articulos' => $articulos,
                         'barrilDetalle' => $barrilDetalle,
-                        'mesa' => $mesaAsignacion
+                        'mesa' => $mesaAsignacion,
+                        'searchModel' => $searchModel,
+                        'dataProvider' => $dataProvider
                     ]
                 );
             } catch (Exception $e) {
@@ -1174,7 +1262,9 @@ class BarrilesController extends Controller
                     [
                         'articulos' => $articulos,
                         'barrilDetalle' => $barrilDetalle,
-                        'mesa' => $mesaAsignacion
+                        'mesa' => $mesaAsignacion,
+                        'searchModel' => $searchModel,
+                        'dataProvider' => $dataProvider
                     ]
                 );
             }
@@ -1496,7 +1586,7 @@ class BarrilesController extends Controller
             if($codigoDataREGISTRO->Estado == 'PENDIENTE' && $codigoDataTRANSACCION->Estado == 'P')
             {
                 $esBarril = $this->verificarBoolCodigoBarril($codigo);
-                if(!empty($esBarril) && $codigoDataREGISTRO->Costo > 0){
+                if(!empty($esBarril) && $codigoDataREGISTRO->Costo == 0){
                     return true;
                 }
                 return false;
@@ -1508,8 +1598,19 @@ class BarrilesController extends Controller
                 return true;
             }
         }
+        return false;
     }
 
+    public function validarCodigoBarraProduccion($codigoDataREGISTRO, $codigoDataTRANSACCION)
+    {
+        
+        if ($codigoDataREGISTRO->Costo == 0 && $codigoDataREGISTRO->Estado == 'PENDIENTE' && $codigoDataTRANSACCION->Estado == 'P') {
+            return false;
+        }else{
+            return true;
+        }
+    }
+    
     public function verificarBoolCodigoBarril($codigoBarraBarril){
         $getDato =  Yii::$app->db->createCommand("SELECT CodigoBarra 
         FROM REGISTRO WHERE CodigoBarra = '" . $codigoBarraBarril . "' AND Articulo like 'BA%'")->queryScalar();
@@ -1873,7 +1974,19 @@ class BarrilesController extends Controller
             WHERE CodigoBarra = '$codigoBarra' AND NumeroDocumento = '$uuid' AND idTipoTransaccion ='1010'"
         )->execute();
     }
+    
+    public function obtenerCodigosFardoAsignacion($mesa){
+        $sql = "SELECT CodigoBarra FROM REGISTRO
+        WHERE Estado = 'PROCESO' 
+        AND MesaOrigenAsignacion = :mesa 
+        AND IdTipoEmpaque NOT IN (1023)";
 
+        $command = Yii::$app->db->createCommand($sql, [':mesa' => $mesa]);
+        $results = $command->queryAll();
+
+        return $results;
+
+    }
     //Finaliza el registro de los fardos agregados o barriles
     public function finalizarRegistroFardo($codigoBarra)
     {
@@ -1911,6 +2024,20 @@ class BarrilesController extends Controller
 
         Yii::$app->db->createCommand(
             "DELETE FROM [TRANSACCION] WHERE CodigoBarra = '$codigoBarra' AND NumeroDocumento = '$uuid'"
+        )->execute();
+    }
+
+    public function eliminarBarrilProduccion($codigoBarra, $mesa){
+
+        Yii::$app->db->createCommand(
+            "DELETE FROM [REGISTRO] WHERE CodigoBarra = '$codigoBarra' AND MesaOrigenAsignacion = '$mesa'"
+        )->execute();
+    }
+
+    public function eliminarBarrilProduccionTransaccion($codigoBarra){
+
+        Yii::$app->db->createCommand(
+            "DELETE FROM [TRANSACCION] WHERE CodigoBarra = '$codigoBarra' AND IdTipoTransaccion = 10"
         )->execute();
     }
 

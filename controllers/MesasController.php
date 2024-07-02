@@ -471,7 +471,7 @@ class MesasController extends Controller
             foreach ($registros as $key => $value) {
                 $datos = explode(", ", $value);
 
-                $this->actualizarRegistroFardoREGISTRO($datos[0]);
+                $this->actualizarRegistroFardoAsignacion($datos[0], $mesa);
                 $this->creaTransaccionSalida($datos[0], $datos[5]);
                 $this->crearRegistroMesaAsignacion($datos[4], $datos[6], $mesa, $productoresString, $fecha, $datos[5]);
             }
@@ -681,7 +681,15 @@ class MesasController extends Controller
     public function actualizarRegistroFardoREGISTRO($codigoBarra)
     {
         Yii::$app->db->createCommand(
-            "UPDATE [REGISTRO] SET Activo = 0 
+            "UPDATE [REGISTRO] SET Activo = 0, Estado='PROCESO'
+            WHERE CodigoBarra = '$codigoBarra'"
+        )->execute();
+    }
+
+    public function actualizarRegistroFardoAsignacion($codigoBarra, $mesa)
+    {
+        Yii::$app->db->createCommand(
+            "UPDATE [REGISTRO] SET Activo = 0, Estado='PROCESO', MesaOrigenAsignacion = '$mesa'
             WHERE CodigoBarra = '$codigoBarra'"
         )->execute();
     }
